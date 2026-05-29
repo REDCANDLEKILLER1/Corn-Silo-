@@ -1,0 +1,958 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>THE CORN SILO WALLET GENERATOR</title>
+
+<!-- Core libs (code/asset loads only - NO wallet data is ever sent anywhere) -->
+<script src="https://cdn.jsdelivr.net/npm/xrpl@4.0.0/build/xrpl-latest-min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+
+<style>
+:root{
+  --gold:#FFD700; --amber:#FFB300; --corn:#FFE14D; --deepamber:#b8860b;
+  --husk:#8BC34A; --neon:#39FF14; --danger:#ff7043;
+  --night:#070803; --panel:#14160c; --panel2:#0a0b06;
+  --glow:0 0 22px rgba(255,215,0,.35);
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  background:
+    radial-gradient(1200px 700px at 50% -10%, rgba(255,196,0,.07), transparent 60%),
+    radial-gradient(900px 600px at 85% 10%, rgba(139,195,74,.05), transparent 55%),
+    linear-gradient(180deg,#0a0c05 0%, #060802 55%, #000 100%);
+  color:#fff; font-family:'Space Mono',monospace; overflow-x:hidden; min-height:100vh;
+}
+#fx-bg{position:fixed; inset:0; z-index:0; pointer-events:none;}
+#fx-fg{position:fixed; inset:0; z-index:55; pointer-events:none;}
+.app-wrap{position:relative; z-index:10;}
+.brand-font{font-family:'Fredoka One',cursive;}
+.brand-text{color:var(--gold); text-shadow:0 2px 0 #7a5200, 0 0 28px rgba(255,215,0,.45); letter-spacing:.01em;}
+.led{font-family:'Space Mono',monospace; color:var(--corn); text-shadow:0 0 10px rgba(255,225,77,.5);}
+.panel{
+  position:relative;
+  background:linear-gradient(160deg,#15170d 0%, #0c0d07 60%, #090a05 100%);
+  border:2px solid rgba(255,215,0,.22); border-radius:22px;
+  box-shadow:0 18px 50px rgba(0,0,0,.85), inset 0 1px 0 rgba(255,255,255,.05), inset 0 0 40px rgba(0,0,0,.5);
+}
+.panel.riveted::before,.panel.riveted::after,
+.panel.riveted > .rivet-tr,.panel.riveted > .rivet-br{
+  content:""; position:absolute; width:8px; height:8px; border-radius:50%;
+  background:radial-gradient(circle at 30% 30%, #ffe9a0, #8a6a00 70%, #3a2c00);
+  box-shadow:0 0 6px rgba(255,215,0,.4);
+}
+.panel.riveted::before{top:12px; left:12px;}
+.panel.riveted::after{bottom:12px; left:12px;}
+.panel .rivet-tr{top:12px; right:12px;}
+.panel .rivet-br{bottom:12px; right:12px;}
+.scanlines{position:absolute; inset:0; border-radius:inherit; pointer-events:none;
+  background:repeating-linear-gradient(0deg, rgba(255,215,0,.025) 0 1px, transparent 1px 3px); opacity:.5;}
+.trim{height:3px; border-radius:3px; background:linear-gradient(90deg,transparent,var(--gold),transparent); opacity:.6;}
+.label-accent{color:var(--gold); font-size:.7rem; font-weight:800; text-transform:uppercase; letter-spacing:.18em; display:flex; align-items:center; gap:8px;}
+.btn-corn{
+  background:linear-gradient(180deg,var(--corn) 0%, var(--amber) 100%);
+  color:#3a2600; font-family:'Fredoka One',cursive; text-transform:uppercase;
+  border:none; border-bottom:5px solid var(--deepamber); border-radius:16px;
+  box-shadow:var(--glow); cursor:pointer; transition:transform .15s, filter .15s, box-shadow .15s;
+}
+.btn-corn:hover{transform:translateY(-1px) scale(1.02); filter:brightness(1.07); box-shadow:0 0 30px rgba(255,215,0,.6);}
+.btn-corn:active{transform:translateY(3px); border-bottom-width:1px;}
+.btn-corn:disabled{opacity:.35; filter:grayscale(.4); cursor:not-allowed; box-shadow:none; transform:none;}
+.btn-ghost{
+  background:rgba(255,215,0,.04); color:var(--gold); font-family:'Fredoka One',cursive; text-transform:uppercase;
+  border:2px solid rgba(255,215,0,.3); border-radius:14px; cursor:pointer; transition:.2s;
+}
+.btn-ghost:hover{border-color:var(--gold); background:rgba(255,215,0,.09); box-shadow:0 0 14px rgba(255,215,0,.25);}
+.btn-ghost:disabled{opacity:.3; cursor:not-allowed;}
+.btn-danger{
+  background:rgba(255,112,67,.08); color:var(--danger); border:2px solid rgba(255,112,67,.45);
+  font-family:'Fredoka One',cursive; text-transform:uppercase; border-radius:14px; cursor:pointer; transition:.2s;
+}
+.btn-danger:hover{background:rgba(255,112,67,.16); box-shadow:0 0 14px rgba(255,112,67,.3);}
+.btn-danger:disabled{opacity:.3; cursor:not-allowed;}
+.btn-mini{font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; padding:6px 12px; border-radius:10px; cursor:pointer;}
+.fld{
+  background:#000; border:2px solid #25260f; border-radius:14px; color:var(--corn);
+  outline:none; padding:14px; width:100%; font-family:'Space Mono',monospace; font-weight:700;
+  transition:border-color .2s, box-shadow .2s; letter-spacing:.04em;
+}
+.fld:focus{border-color:var(--gold); box-shadow:0 0 14px rgba(255,215,0,.22);}
+.fld::placeholder{color:#5a5530;}
+.prefix-wrap{display:flex; background:#000; border:2px solid #25260f; border-radius:14px; overflow:hidden; transition:border-color .2s, box-shadow .2s;}
+.prefix-wrap:focus-within{border-color:var(--gold); box-shadow:0 0 14px rgba(255,215,0,.22);}
+.prefix-chip{padding:14px 16px; background:#1a1b0d; color:var(--gold); font-weight:800; font-family:'Fredoka One',cursive;}
+.switch{appearance:none; -webkit-appearance:none; width:44px; height:24px; border-radius:14px; background:#26260f;
+  border:1px solid #3a3a18; position:relative; cursor:pointer; transition:.2s; flex:none;}
+.switch:checked{background:linear-gradient(90deg,var(--amber),var(--corn)); border-color:var(--gold); box-shadow:0 0 10px rgba(255,215,0,.4);}
+.switch::after{content:""; position:absolute; top:2px; left:2px; width:18px; height:18px; border-radius:50%; background:#0a0a05; transition:.2s;}
+.switch:checked::after{left:22px; background:#3a2600;}
+.radio-chip{display:inline-flex; align-items:center; gap:8px; cursor:pointer; font-size:12px; font-weight:700; color:#cfcf9a;}
+.radio-chip input{accent-color:var(--gold); width:16px; height:16px;}
+.qchip{font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; padding:7px 11px;
+  border-radius:999px; border:1px solid rgba(255,215,0,.25); color:var(--gold); background:rgba(255,215,0,.03); cursor:pointer; transition:.15s;}
+.qchip:hover{background:rgba(255,215,0,.1); border-color:var(--gold);}
+.qchip.active{background:linear-gradient(90deg,var(--amber),var(--corn)); color:#3a2600; border-color:var(--gold);}
+.secret{filter:blur(15px); transition:filter .35s ease; cursor:pointer; user-select:none;}
+.secret.shown{filter:none; user-select:text;}
+.stat{background:linear-gradient(160deg,#12130a,#0a0b05); border:1px solid rgba(255,215,0,.16); border-radius:16px; padding:14px 16px;}
+.stat .k{font-size:9px; letter-spacing:.16em; text-transform:uppercase; color:#9a9558; font-weight:800;}
+.stat .v{font-size:1.5rem; font-weight:700; margin-top:4px;}
+.gauge{width:34px; height:120px; border-radius:12px; border:1px solid rgba(255,215,0,.25); background:#0a0b05; position:relative; overflow:hidden;}
+.gauge-fill{position:absolute; left:0; right:0; bottom:0; height:0%;
+  background:linear-gradient(180deg,var(--neon),var(--corn),var(--amber)); transition:height .25s ease; box-shadow:0 0 14px rgba(255,215,0,.4);}
+.gauge-ticks{position:absolute; inset:0; background:repeating-linear-gradient(0deg, transparent 0 14px, rgba(0,0,0,.4) 14px 15px);}
+.pip{width:10px; height:18px; border-radius:3px; background:#1a1b0d; transition:background .08s, box-shadow .08s;}
+.pip.on{background:var(--corn); box-shadow:0 0 9px var(--corn);}
+.ticker{font-family:'Space Mono',monospace; color:#bdbd86; font-size:12px; word-break:break-all;}
+.cursor-blink::after{content:"\2588"; color:var(--corn); animation:blink 1s steps(1) infinite; margin-left:2px;}
+@keyframes blink{50%{opacity:0}}
+.match-card{animation:slidein .35s cubic-bezier(.2,.8,.2,1.2);}
+@keyframes slidein{from{opacity:0; transform:translateY(-10px) scale(.98)} to{opacity:1; transform:none}}
+.cob-glow{animation:cobpulse 1.6s ease-in-out 3;}
+@keyframes cobpulse{0%,100%{box-shadow:0 0 0 rgba(255,215,0,0)} 50%{box-shadow:0 0 26px rgba(255,215,0,.55)}}
+.modal-overlay{background:rgba(0,0,0,.93); backdrop-filter:blur(14px); display:none; position:fixed; inset:0; z-index:200; align-items:center; justify-content:center; padding:18px;}
+.harvest-overlay{position:fixed; inset:0; z-index:210; background:rgba(0,0,0,.9); backdrop-filter:blur(12px); display:none; align-items:flex-start; justify-content:center; padding:16px; overflow-y:auto;}
+.harvest-box{width:min(640px,96vw); margin:auto; padding:22px;}
+.warn{background:linear-gradient(90deg, rgba(255,112,67,.12), rgba(255,179,0,.08)); border:1px solid rgba(255,179,0,.35); border-radius:16px;}
+#toast{position:fixed; left:50%; bottom:26px; transform:translateX(-50%) translateY(120%); z-index:300;
+  background:linear-gradient(180deg,var(--corn),var(--amber)); color:#3a2600; font-family:'Fredoka One',cursive;
+  padding:12px 22px; border-radius:14px; box-shadow:0 10px 30px rgba(0,0,0,.6); transition:transform .3s; font-size:13px;}
+#toast.show{transform:translateX(-50%) translateY(0);}
+.tab-btn{font-family:'Fredoka One',cursive; padding:8px 22px; border-radius:999px; transition:.2s; cursor:pointer; border:none; background:transparent;}
+.tab-on{color:#3a2600; background:linear-gradient(90deg,var(--amber),var(--corn)); box-shadow:0 0 16px rgba(255,215,0,.4);}
+.tab-off{color:#6e6a3a;}
+/* hamburger */
+.ham-line{width:20px; height:2px; border-radius:2px; background:var(--gold); box-shadow:0 0 6px rgba(255,215,0,.4); transition:.25s;}
+#hamburger.open .ham-line:nth-child(1){transform:translateY(7px) rotate(45deg);}
+#hamburger.open .ham-line:nth-child(2){opacity:0;}
+#hamburger.open .ham-line:nth-child(3){transform:translateY(-7px) rotate(-45deg);}
+#hamburger:hover{box-shadow:0 0 16px rgba(255,215,0,.25);}
+
+/* search-type tabs */
+.subtab{font-family:'Fredoka One',cursive; font-size:13px; padding:9px 18px; border-radius:999px; cursor:pointer;
+  border:2px solid rgba(255,215,0,.22); color:#9a9558; background:rgba(255,215,0,.03); transition:.18s;}
+.subtab:hover{color:var(--gold); border-color:rgba(255,215,0,.45);}
+.subtab.active{color:#3a2600; background:linear-gradient(90deg,var(--amber),var(--corn)); border-color:var(--gold); box-shadow:0 0 16px rgba(255,215,0,.35);}
+
+/* settings disclosure */
+.settings{border-top:1px solid rgba(255,215,0,.1); padding-top:14px;}
+.settings summary{cursor:pointer; list-style:none; color:var(--gold); font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.14em; outline:none;}
+.settings summary::-webkit-details-marker{display:none;}
+.settings summary::before{content:"▸ "; color:var(--amber);}
+.settings[open] summary::before{content:"▾ ";}
+
+/* slide-in menu drawer */
+#menu-back{position:fixed; inset:0; z-index:240; background:rgba(0,0,0,.6); backdrop-filter:blur(4px); opacity:0; pointer-events:none; transition:opacity .25s;}
+#menu-back.open{opacity:1; pointer-events:auto;}
+#menu-drawer{position:fixed; top:0; right:0; bottom:0; z-index:250; width:300px; max-width:84vw;
+  background:linear-gradient(160deg,#16180d,#0a0b06); border-left:2px solid rgba(255,215,0,.25);
+  box-shadow:-20px 0 60px rgba(0,0,0,.7); transform:translateX(105%); transition:transform .3s cubic-bezier(.2,.8,.2,1); padding:26px 22px;}
+#menu-drawer.open{transform:translateX(0);}
+.menu-item{display:flex; align-items:center; justify-content:space-between; gap:12px; width:100%; text-align:left;
+  padding:15px 14px; border-radius:14px; border:1px solid transparent; background:rgba(255,215,0,.03); color:#e8e3c4;
+  font-size:14px; cursor:pointer; transition:.15s; margin-bottom:8px;}
+.menu-item:hover{border-color:rgba(255,215,0,.3); background:rgba(255,215,0,.08);}
+.menu-item .mi-ico{font-size:18px;}
+
+/* help overlay */
+#help-overlay{position:fixed; inset:0; z-index:260; background:rgba(0,0,0,.93); backdrop-filter:blur(14px); display:none; overflow-y:auto; padding:24px 16px;}
+.help-h{color:var(--gold); font-family:'Fredoka One',cursive; font-size:15px; margin-top:18px; display:flex; align-items:center; gap:8px;}
+.help-p{font-size:13px; color:#cfcaa8; line-height:1.6; margin-top:6px;}
+
+/* guided tour */
+#tour-overlay{position:fixed; inset:0; z-index:400; display:none; pointer-events:auto;}
+#tour-spot{position:fixed; border-radius:18px; box-shadow:0 0 0 9999px rgba(4,5,2,.82); transition:all .3s ease; pointer-events:none; border:2px solid var(--corn);}
+#tour-card{position:fixed; left:50%; bottom:24px; transform:translateX(-50%); width:min(460px,92vw);
+  background:linear-gradient(160deg,#16180d,#0a0b06); border:2px solid rgba(255,215,0,.3); border-radius:20px;
+  box-shadow:0 20px 60px rgba(0,0,0,.7); padding:22px; pointer-events:auto;}
+.tour-dots{display:flex; gap:6px; justify-content:center; margin:14px 0;}
+.tour-dot{width:7px; height:7px; border-radius:50%; background:#3a3a18;}
+.tour-dot.on{background:var(--corn); box-shadow:0 0 8px var(--corn);}
+
+@media (prefers-reduced-motion: reduce){ *{animation:none !important; transition:none !important;} }
+</style>
+</head>
+<body class="p-4 md:p-8">
+<canvas id="fx-bg"></canvas>
+<canvas id="fx-fg"></canvas>
+
+<div class="app-wrap w-full max-w-5xl mx-auto space-y-6">
+
+  <!-- HEADER -->
+  <header class="flex flex-col lg:flex-row justify-between items-center gap-5">
+    <div class="text-center lg:text-left">
+      <h1 class="text-4xl md:text-6xl brand-font brand-text leading-none">🌽 THE CORN SILO</h1>
+      <p class="text-[10px] md:text-[11px] font-black text-white/35 uppercase tracking-[0.42em] mt-2">Wallet Generator &nbsp;•&nbsp; Vanity Harvest Engine</p>
+    </div>
+    <div class="flex items-center gap-3">
+      <nav class="panel flex p-1.5 rounded-full">
+        <span class="rivet-tr"></span><span class="rivet-br"></span>
+        <button id="tab-vault" onclick="switchTab('vault')" class="tab-btn tab-on">Vault</button>
+        <button id="tab-engine" onclick="switchTab('engine')" class="tab-btn tab-off">Engine</button>
+      </nav>
+      <button id="hamburger" onclick="toggleMenu()" aria-label="Menu" class="panel w-12 h-12 rounded-2xl flex flex-col items-center justify-center gap-[5px]">
+        <span class="ham-line"></span><span class="ham-line"></span><span class="ham-line"></span>
+      </button>
+    </div>
+  </header>
+
+  <!-- (calm key-safety note lives in Help, not a scary banner) -->
+
+  <!-- ============ VAULT ============ -->
+  <section id="view-vault" class="space-y-5">
+    <div class="panel riveted p-6 md:p-8 flex flex-col md:flex-row items-center gap-6">
+      <div class="scanlines"></div>
+      <button id="btn-generate" onclick="generateNew()" class="btn-corn px-10 py-5 text-lg w-full md:w-auto relative z-10">🌽 Harvest a Wallet</button>
+      <button onclick="toggleVisibility()" id="vis-btn" class="btn-ghost px-6 py-3 text-sm relative z-10">👁 Reveal</button>
+    </div>
+
+    <div id="output-area" class="hidden space-y-4">
+      <div class="panel riveted p-7">
+        <div class="scanlines"></div>
+        <div class="flex items-center justify-between relative z-10">
+          <label class="label-accent"><span>🌽</span> Address</label>
+          <button class="btn-mini btn-ghost" onclick="copyText(currentWallet&&currentWallet.classicAddress,this)">Copy</button>
+        </div>
+        <div id="addr" class="text-xl md:text-3xl font-bold text-white break-all tracking-tight mt-3 relative z-10"></div>
+      </div>
+
+      <div class="panel riveted p-7">
+        <div class="flex items-center justify-between">
+          <label class="label-accent"><span>🔑</span> Family Seed</label>
+          <button class="btn-mini btn-ghost" onclick="copyText(currentWallet&&currentWallet.seed,this)">Copy</button>
+        </div>
+        <div id="seed" onclick="this.classList.toggle('shown')" class="secret text-lg font-bold led break-all mt-3"></div>
+        <p class="text-[9px] text-zinc-600 mt-2 uppercase tracking-wider">Tap to reveal / hide</p>
+      </div>
+
+      <div class="panel riveted p-7">
+        <div class="flex items-center justify-between">
+          <label class="label-accent"><span>📜</span> 24-Word Master Phrase</label>
+          <button class="btn-mini btn-ghost" onclick="copyText(currentMnemonic,this)">Copy</button>
+        </div>
+        <div class="bg-black/50 p-5 rounded-2xl border-2 border-dashed border-amber-500/20 mt-3">
+          <div id="words" onclick="this.classList.toggle('shown')" class="secret text-sm md:text-base text-zinc-200 leading-relaxed text-center uppercase tracking-widest"></div>
+        </div>
+        <p class="text-[9px] text-zinc-600 mt-2 uppercase tracking-wider text-center">Tap to reveal / hide</p>
+        <p class="text-[11px] text-amber-200/70 mt-3 text-center leading-relaxed">🖊️ Write your seed and these 24 words down and keep them offline — they're your only backup, and they work in any XRPL wallet.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ HARVEST ENGINE ============ -->
+  <section id="view-engine" class="hidden space-y-5">
+
+    <!-- SEARCH CARD: one search type at a time; odds shown on every tab -->
+    <div id="search-card" class="panel riveted p-6 md:p-7">
+      <div class="scanlines"></div>
+      <div class="relative z-10">
+
+        <div class="flex flex-wrap gap-2 mb-5">
+          <button class="subtab active" data-s="prefix"   onclick="setSearchType('prefix')">🌽 Front</button>
+          <button class="subtab"        data-s="contains" onclick="setSearchType('contains')">🌽 Middle</button>
+          <button class="subtab"        data-s="suffix"   onclick="setSearchType('suffix')">🌽 Back</button>
+          <button class="subtab"        data-s="whole"    onclick="setSearchType('whole')">✳️ Pattern</button>
+        </div>
+
+        <div id="search-prompt" class="text-sm text-amber-100/80 mb-2">I want an address that <b class="text-amber-300">starts with</b>…</div>
+
+        <div data-in="prefix">
+          <div class="prefix-wrap">
+            <span class="prefix-chip">r</span>
+            <input id="in-prefix" oninput="onCfgChange()" placeholder="corn" maxlength="14"
+              class="bg-transparent w-full px-3 py-4 outline-none font-bold text-2xl" style="color:var(--corn)">
+          </div>
+          <div id="hint-prefix" class="text-[11px] mt-2 h-4"></div>
+        </div>
+        <div data-in="contains" class="hidden">
+          <input id="in-contains" oninput="onCfgChange()" placeholder="moon" maxlength="14" class="fld text-2xl">
+          <div id="hint-contains" class="text-[11px] mt-2 h-4"></div>
+        </div>
+        <div data-in="suffix" class="hidden">
+          <input id="in-suffix" oninput="onCfgChange()" placeholder="888" maxlength="14" class="fld text-2xl">
+          <div id="hint-suffix" class="text-[11px] mt-2 h-4"></div>
+        </div>
+        <div data-in="whole" class="hidden">
+          <input id="in-whole" oninput="onCfgChange()" placeholder="r*corn" maxlength="35" class="fld text-xl">
+          <div id="hint-whole" class="text-[11px] mt-2 h-4 text-zinc-500">Use * (any run) and ? (any char). e.g. r*corn = ends in corn.</div>
+        </div>
+
+        <div class="mt-4 flex items-center gap-2 border-t border-amber-500/10 pt-4">
+          <span class="text-lg">🎲</span>
+          <div id="odds-readout" class="text-[12px] text-amber-100/75">Type a word to see your rough odds.</div>
+        </div>
+
+        <details class="settings mt-4">
+          <summary>⚙️ Engine settings <span class="text-zinc-500 normal-case tracking-normal font-normal">— case, curve, speed</span></summary>
+          <div class="mt-4 space-y-4">
+            <label class="flex items-center justify-between gap-3 text-sm text-amber-100">
+              <span>Case-insensitive <span class="text-[10px] text-zinc-500">(finds matches faster)</span></span>
+              <input id="chk-ci" type="checkbox" class="switch" checked oninput="onCfgChange()">
+            </label>
+            <div class="flex items-center justify-between gap-3">
+              <span class="text-sm text-amber-100">Curve</span>
+              <select id="sel-algo" onchange="onCfgChange()" class="fld w-auto py-2 px-3 text-sm">
+                <option value="ed25519">ed25519 (fast)</option>
+                <option value="ecdsa-secp256k1">secp256k1 (classic)</option>
+              </select>
+            </div>
+            <div class="flex items-center justify-between gap-3">
+              <span class="text-sm text-amber-100">Turbines <span class="text-[10px] text-zinc-500">(CPU threads)</span></span>
+              <div class="flex items-center gap-3">
+                <input id="rng-workers" type="range" min="1" max="16" value="3" oninput="onWorkersChange()" style="accent-color:var(--gold)">
+                <span id="workers-val" class="led font-bold w-6 text-center">3</span>
+              </div>
+            </div>
+          </div>
+        </details>
+
+      </div>
+    </div>
+
+    <button id="btn-start" onclick="startHarvest()" class="btn-corn w-full px-8 py-5 text-lg">▶ Engage Turbines</button>
+  </section>
+
+  <footer class="text-center pt-6 pb-2 space-y-1">
+    <div class="trim max-w-xs mx-auto mb-4"></div>
+    <p class="text-[11px] font-black brand-font" style="color:var(--gold)">🌽 THE CORN SILO WALLET GENERATOR</p>
+    <p class="text-[10px] text-zinc-600 uppercase tracking-widest">v2.0.0-corn-silo-vanity-engine</p>
+    <p class="text-[10px] text-zinc-600">Secrets never leave your browser — keys are generated locally, in-browser, with no servers and no analytics.</p>
+  </footer>
+</div>
+
+<!-- SLIDE-IN MENU -->
+<div id="menu-back" onclick="closeMenu()"></div>
+<aside id="menu-drawer">
+  <div class="flex items-center justify-between mb-6">
+    <span class="brand-font led text-xl">🌽 Menu</span>
+    <button onclick="closeMenu()" class="btn-mini btn-ghost">✕</button>
+  </div>
+  <button class="menu-item" onclick="closeMenu(); openHelp()"><span><span class="mi-ico">❓</span> &nbsp;How it works</span><span class="text-zinc-600">›</span></button>
+  <button class="menu-item" onclick="closeMenu(); startTour()"><span><span class="mi-ico">🎬</span> &nbsp;Take the tour</span><span class="text-zinc-600">›</span></button>
+  <label class="menu-item" style="cursor:pointer">
+    <span><span class="mi-ico">🚜</span> &nbsp;Farmer Mode</span>
+    <input id="menu-farmer" type="checkbox" class="switch" onchange="toggleFarmer()">
+  </label>
+  <div class="trim my-5"></div>
+  <div class="text-center text-[10px] text-zinc-600 uppercase tracking-widest leading-relaxed">
+    🌽 The Corn Silo<br>v2.0.0-corn-silo-vanity-engine<br>
+    <span class="text-zinc-700">keys generated locally · no servers</span>
+  </div>
+</aside>
+
+<!-- HELP -->
+<div id="help-overlay">
+  <div class="max-w-lg mx-auto">
+    <div class="flex items-center justify-between sticky top-0 py-2" style="background:rgba(4,5,2,.6); backdrop-filter:blur(6px)">
+      <span class="brand-font led text-2xl">🌽 How it works</span>
+      <button onclick="closeHelp()" class="btn-ghost btn-mini">Close ✕</button>
+    </div>
+
+    <div class="help-h"><span>🌽</span> The Vault</div>
+    <p class="help-p">Tap <b>Harvest a Wallet</b> to mint a brand-new XRPL wallet — you get the address, the family seed, and a 24-word phrase. Seed and words stay blurred until you tap them.</p>
+
+    <div class="help-h"><span>🖊️</span> Backing up</div>
+    <p class="help-p">Your <b>family seed</b> and <b>24 words</b> are the wallet — write them down and keep them somewhere safe offline. They import into any XRPL wallet (like Xaman), so that's all you ever need. There are no files to save and nothing is stored on your device.</p>
+
+    <div class="help-h"><span>🎯</span> The Harvest Engine</div>
+    <p class="help-p">Pick where your word should land — <b>Front</b>, <b>Middle</b>, <b>Back</b>, or a full <b>Pattern</b> — type it, and hit <b>Engage Turbines</b>. The engine spins fresh wallets until one matches, then drops it in the Harvest Bin to copy or bank into the Vault.</p>
+
+    <div class="help-h"><span>🎲</span> Odds &amp; speed</div>
+    <p class="help-p"><b>Case-insensitive</b> (on by default) finds matches much faster. The odds line estimates how rare your word is — short words land in seconds, long ones can take a long time. <b>Turbines</b> = how many CPU threads hunt at once.</p>
+
+    <div class="help-h"><span>🌽</span> Your keys are yours</div>
+    <p class="help-p">Everything is generated right here in your browser — nothing is ever uploaded. The seed and 24 words are full control of the wallet, so keep them private and back them up somewhere safe.</p>
+
+    <div class="text-center mt-7 mb-4">
+      <button onclick="closeHelp(); startTour()" class="btn-ghost px-6 py-3 text-sm">🎬 Replay the walkthrough</button>
+    </div>
+  </div>
+</div>
+
+<!-- GUIDED TOUR -->
+<div id="tour-overlay">
+  <div id="tour-spot"></div>
+  <div id="tour-card">
+    <div id="tour-title" class="brand-font led text-lg"></div>
+    <div id="tour-body" class="text-[13px] text-amber-100/85 leading-relaxed mt-2"></div>
+    <div id="tour-dots" class="tour-dots"></div>
+    <div class="flex items-center justify-between gap-3">
+      <button onclick="endTour()" class="btn-mini text-zinc-500 hover:text-zinc-300">Skip</button>
+      <div class="flex gap-2">
+        <button id="tour-back" onclick="tourStep(-1)" class="btn-ghost btn-mini px-4 py-2">Back</button>
+        <button id="tour-next" onclick="tourStep(1)" class="btn-corn btn-mini px-5 py-2">Next</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- HARVEST POPUP (the focused search view) -->
+<div id="harvest-modal" class="harvest-overlay">
+  <div class="panel riveted harvest-box">
+    <div class="scanlines"></div>
+    <div class="relative z-10">
+      <div class="flex items-start justify-between mb-5 gap-3">
+        <div>
+          <div id="harvest-title" class="brand-font led text-xl">🌽 Harvesting…</div>
+          <div id="harvest-target" class="text-[11px] text-amber-200/70 mt-1 uppercase tracking-widest">searching…</div>
+        </div>
+        <button onclick="closeHarvest()" class="btn-ghost btn-mini flex-none">✕ Close</button>
+      </div>
+
+      <div class="flex flex-col sm:flex-row gap-5">
+        <div class="flex flex-col items-center gap-2 flex-none">
+          <div class="text-[9px] uppercase tracking-widest text-zinc-500 font-bold">Silo Pressure</div>
+          <div class="gauge"><div class="gauge-ticks"></div><div id="silo-fill" class="gauge-fill"></div></div>
+        </div>
+        <div class="flex-1 grid grid-cols-2 md:grid-cols-3 gap-3">
+          <div class="stat"><div class="k">🌽 Bushels Scanned</div><div id="st-bushels" class="v led">0</div></div>
+          <div class="stat"><div class="k">⚡ Corn Velocity</div><div id="st-velocity" class="v led">0 /s</div></div>
+          <div class="stat"><div class="k">⏱ Runtime</div><div id="st-runtime" class="v led">00:00</div></div>
+          <div class="stat"><div class="k">🏆 Golden Cobs</div><div id="st-matches" class="v" style="color:var(--neon)">0</div></div>
+          <div class="stat"><div class="k">🌀 Turbines</div><div id="st-workers" class="v led">OFF</div></div>
+          <div class="stat"><div class="k">🌽 Closest Cob</div><div id="st-closest" class="v led" style="font-size:.95rem; word-break:break-all">—</div></div>
+        </div>
+      </div>
+
+      <div class="mt-4">
+        <div class="text-[9px] uppercase tracking-widest text-zinc-500 font-bold mb-2">Now Scanning</div>
+        <div id="st-now" class="ticker">starting…</div>
+        <div id="node-grid" class="flex flex-wrap gap-1.5 mt-4 justify-center"></div>
+      </div>
+
+      <div class="flex flex-wrap items-center justify-center gap-3 mt-6">
+        <button id="btn-pause" onclick="pauseHarvest()" class="btn-ghost px-6 py-3 text-sm">⏸ Pause</button>
+        <button id="btn-resume" onclick="resumeHarvest()" class="btn-ghost px-6 py-3 text-sm" disabled>⏵ Resume</button>
+        <button id="btn-stop" onclick="stopHarvest()" class="btn-danger px-6 py-3 text-sm">⏹ Stop</button>
+      </div>
+
+      <div class="mt-6">
+        <label class="label-accent mb-3"><span>🧺</span> Harvest Bin</label>
+        <div id="results-empty" class="text-center text-zinc-500 text-sm py-6">Scanning for your golden cob… 🌽</div>
+        <div id="vanity-results" class="grid grid-cols-1 gap-3"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+<script>
+/* ===================================================================
+   THE CORN SILO WALLET GENERATOR  •  v2.0.0-corn-silo-vanity-engine
+   Single-file, browser-only. No wallet data ever touches a network.
+=================================================================== */
+const VERSION = "v2.0.0-corn-silo-vanity-engine";
+const BASE58  = "rpshnaf39wBUDNEGHJKLM4PQRST7VWXYZ2bcdeCg65jkm8oFqi1tuvAxyz";
+const ADDR_LEN = 34;
+
+function $(id){ return document.getElementById(id); }
+function fmtNum(n){ return (n||0).toLocaleString(); }
+function fmtTime(ms){
+  const s=Math.floor(ms/1000), h=Math.floor(s/3600), m=Math.floor((s%3600)/60), x=s%60;
+  const p=(v)=>String(v).padStart(2,'0');
+  return h>0 ? `${p(h)}:${p(m)}:${p(x)}` : `${p(m)}:${p(x)}`;
+}
+function escapeHtml(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function toast(msg){
+  const t=$('toast'); t.textContent=msg; t.classList.add('show');
+  clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove('show'),1600);
+}
+function copyText(str, btn){
+  if(!str){ toast('Nothing to copy yet 🌽'); return; }
+  const done=()=>{ toast('Copied to clipboard 🌽'); if(btn){ const o=btn.textContent; btn.textContent='✓'; setTimeout(()=>btn.textContent=o,900);} };
+  if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(str).then(done).catch(fallback); }
+  else fallback();
+  function fallback(){ const ta=document.createElement('textarea'); ta.value=str; document.body.appendChild(ta); ta.select(); try{document.execCommand('copy'); done();}catch(e){toast('Copy failed');} document.body.removeChild(ta); }
+}
+function seedAlgo(seed){ return (seed||'').startsWith('sEd') ? 'ed25519' : 'ecdsa-secp256k1'; }
+function download(content, name){
+  const blob=new Blob([content],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+}
+function matchCount(ch, ci){
+  if(ci){ const lc=ch.toLowerCase(); let n=0; for(const c of BASE58) if(c.toLowerCase()===lc) n++; return n; }
+  return BASE58.indexOf(ch)>=0 ? 1 : 0;
+}
+
+/* ===================== BACKGROUND ===================== */
+const bg=$('fx-bg'), bgx=bg.getContext('2d');
+const fg=$('fx-fg'), fgx=fg.getContext('2d');
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+let farmer=false, far=[], mid=[], near=[], dust=[], front=[], tractors=[], W=0, H=0, turbineAngle=0;
+
+function rnd(a,b){ return a+Math.random()*(b-a); }
+function densityScale(){ const base=(W*H)/(1280*720); return Math.min(2.2, Math.max(.45, base)); }
+function makeCorn(s0,s1,v0,v1,a){ return {x:rnd(0,W),y:rnd(-H,H),size:rnd(s0,s1),vy:rnd(v0,v1),rot:rnd(0,6.28),rv:rnd(-.02,.02),a}; }
+function makeKernel(){ return {x:rnd(0,W),y:rnd(-H,H),r:rnd(1.4,3),vy:rnd(.15,.5),a:rnd(.08,.22)}; }
+function makeDust(){ return {x:rnd(0,W),y:rnd(0,H),r:rnd(.6,1.8),vy:rnd(-.25,.25),vx:rnd(-.15,.15),a:rnd(.15,.5),tw:rnd(0,6.28)}; }
+
+function initBg(){
+  W=bg.width=fg.width=innerWidth; H=bg.height=fg.height=innerHeight;
+  const d=densityScale(), f=farmer?1.8:1;
+  far  = Array.from({length:Math.round(34*d*f)}, makeKernel);
+  mid  = Array.from({length:Math.round(16*d*f)}, ()=>makeCorn(20,34,.25,.7,.30));
+  near = Array.from({length:Math.round(11*d*f)}, ()=>makeCorn(40,66,.7,1.5,.45));
+  dust = Array.from({length:Math.round(40*d*f)}, makeDust);
+  front= Array.from({length:Math.round((farmer?8:5)*Math.max(1,d*.7))}, ()=>makeCorn(74,118,1.6,3.0,.36));
+  tractors = farmer ? [
+    { x:-80,        y:H*0.885, size:50, speed:2.3 },
+    { x:-W*0.55-80, y:H*0.93,  size:38, speed:1.6 }
+  ] : [];
+}
+function drawSkyline(){
+  const groundY=H*0.86;
+  const mg=bgx.createRadialGradient(W*0.82,H*0.16,8,W*0.82,H*0.16,180);
+  mg.addColorStop(0,'rgba(255,236,170,0.20)'); mg.addColorStop(1,'rgba(255,236,170,0)');
+  bgx.fillStyle=mg; bgx.beginPath(); bgx.arc(W*0.82,H*0.16,180,0,7); bgx.fill();
+  bgx.fillStyle='rgba(255,240,190,0.5)'; bgx.beginPath(); bgx.arc(W*0.82,H*0.16,26,0,7); bgx.fill();
+  const gg=bgx.createLinearGradient(0,groundY,0,H);
+  gg.addColorStop(0,'rgba(20,22,8,0.0)'); gg.addColorStop(1,'rgba(8,10,4,0.9)');
+  bgx.fillStyle=gg; bgx.fillRect(0,groundY,W,H-groundY);
+  const silo=(cx,w,h)=>{
+    const top=groundY-h;
+    bgx.fillStyle='#0d0f07'; bgx.fillRect(cx-w/2,top,w,h);
+    bgx.beginPath(); bgx.ellipse(cx,top,w/2,w*0.32,0,Math.PI,0); bgx.fill();
+    bgx.strokeStyle='rgba(255,215,0,0.10)'; bgx.lineWidth=1;
+    for(let yy=top+w*0.4; yy<groundY-4; yy+=Math.max(14,h/7)){ bgx.beginPath(); bgx.moveTo(cx-w/2,yy); bgx.lineTo(cx+w/2,yy); bgx.stroke(); }
+    bgx.strokeStyle='rgba(255,215,0,0.16)'; bgx.beginPath(); bgx.moveTo(cx-w/2,top); bgx.lineTo(cx-w/2,groundY); bgx.stroke();
+  };
+  const barn=(cx,w,h)=>{
+    const top=groundY-h;
+    bgx.fillStyle='#0e0a07';
+    bgx.beginPath(); bgx.moveTo(cx-w/2,top+h*0.42); bgx.lineTo(cx,top); bgx.lineTo(cx+w/2,top+h*0.42); bgx.closePath(); bgx.fill();
+    bgx.fillRect(cx-w/2,top+h*0.42,w,h*0.58);
+    bgx.strokeStyle='rgba(255,215,0,0.12)'; bgx.lineWidth=1; bgx.strokeRect(cx-w/2,top+h*0.42,w,h*0.58);
+  };
+  barn(W*0.16, Math.min(180,W*0.16), 90);
+  silo(W*0.34, Math.min(60,W*0.06), 150);
+  const tcx=W*0.46, tw=Math.min(72,W*0.07), th=210, ttop=groundY-th;
+  silo(tcx,tw,th);
+  bgx.save(); bgx.translate(tcx,ttop-6); bgx.rotate(turbineAngle);
+  bgx.strokeStyle='rgba(255,215,0,0.3)'; bgx.lineWidth=2;
+  for(let i=0;i<3;i++){ bgx.rotate(6.283/3); bgx.beginPath(); bgx.moveTo(0,0); bgx.lineTo(0,-16); bgx.stroke(); }
+  bgx.restore();
+  silo(W*0.62, Math.min(54,W*0.055), 130);
+  bgx.strokeStyle='rgba(255,215,0,0.07)'; bgx.lineWidth=1; bgx.beginPath(); bgx.moveTo(0,groundY); bgx.lineTo(W,groundY); bgx.stroke();
+}
+function drawCorn(c,onFront){
+  const cx=onFront?fgx:bgx;
+  cx.save(); cx.translate(c.x,c.y); cx.rotate(c.rot); cx.globalAlpha=c.a;
+  if(onFront){ cx.shadowColor='rgba(255,210,0,0.5)'; cx.shadowBlur=18; }
+  cx.font=c.size+'px serif'; cx.textAlign='center'; cx.textBaseline='middle';
+  cx.fillText('🌽',0,0); cx.restore();
+}
+function drawTractor(tr){
+  const yb = tr.y + Math.sin(tr.x*0.045)*2.5;   // bumpy ride
+  // dust puff trailing behind
+  fgx.save(); fgx.globalCompositeOperation='lighter';
+  for(let i=0;i<5;i++){ fgx.globalAlpha=0.07*(1-i/5); fgx.fillStyle='#FFE6A0';
+    fgx.beginPath(); fgx.arc(tr.x - tr.size*0.55 - i*9, yb + tr.size*0.22, Math.max(1.5,7-i), 0, 7); fgx.fill(); }
+  fgx.restore();
+  // tractor (🚜 faces left by default — flip so it faces the way it drives)
+  fgx.save(); fgx.globalAlpha=0.96; fgx.translate(tr.x, yb); fgx.scale(-1,1);
+  fgx.font=tr.size+'px serif'; fgx.textAlign='center'; fgx.textBaseline='middle';
+  fgx.fillText('🚜',0,0); fgx.restore();
+}
+function step(){
+  bgx.clearRect(0,0,W,H); drawSkyline();
+  bgx.fillStyle='#FFD24D';
+  far.forEach(k=>{ bgx.globalAlpha=k.a; bgx.beginPath(); bgx.ellipse(k.x,k.y,k.r,k.r*1.5,0,0,7); bgx.fill(); k.y+=k.vy; if(k.y>H+10){k.y=-10;k.x=rnd(0,W);} });
+  bgx.globalAlpha=1;
+  mid.forEach(c=>{ drawCorn(c,false); c.y+=c.vy; c.rot+=c.rv; if(c.y>H+40){c.y=-40;c.x=rnd(0,W);} });
+  bgx.globalCompositeOperation='lighter';
+  dust.forEach(p=>{ p.tw+=0.05; bgx.globalAlpha=p.a*(0.5+0.5*Math.sin(p.tw)); bgx.fillStyle='#FFE98A'; bgx.beginPath(); bgx.arc(p.x,p.y,p.r,0,7); bgx.fill(); p.x+=p.vx; p.y+=p.vy; if(p.y<0)p.y=H; if(p.y>H)p.y=0; if(p.x<0)p.x=W; if(p.x>W)p.x=0; });
+  bgx.globalCompositeOperation='source-over'; bgx.globalAlpha=1;
+  near.forEach(c=>{ drawCorn(c,false); c.y+=c.vy; c.rot+=c.rv; if(c.y>H+70){c.y=-70;c.x=rnd(0,W);} });
+  fgx.clearRect(0,0,W,H);
+  front.forEach(c=>{ drawCorn(c,true); c.y+=c.vy; c.rot+=c.rv; if(c.y>H+130){c.y=-130;c.x=rnd(0,W);} });
+  tractors.forEach(tr=>{ tr.x+=tr.speed; if(tr.x>W+tr.size) tr.x=-tr.size; drawTractor(tr); });
+  turbineAngle+=0.02;
+  if(!reduceMotion) requestAnimationFrame(step);
+}
+addEventListener('resize', initBg); initBg();
+if(reduceMotion){ drawSkyline(); mid.forEach(c=>drawCorn(c,false)); near.forEach(c=>drawCorn(c,false)); } else step();
+function toggleFarmer(){ farmer=$('menu-farmer').checked; initBg(); toast(farmer ? '🚜 Farmer Mode — the tractors are out!' : '🚜 Tractors parked.'); }
+
+/* ===================== VAULT ===================== */
+let currentWallet=null, currentMnemonic='', isVisible=false;
+
+function generateNew(){
+  const entropy=crypto.getRandomValues(new Uint8Array(32));
+  const wallet=xrpl.Wallet.fromEntropy(Array.from(entropy.slice(0,16)),{algorithm:'ed25519'});
+  setWallet(wallet, ethers.utils.entropyToMnemonic(entropy));
+  toast('🌽 Fresh wallet harvested');
+}
+function setWallet(wallet, mnemonic){
+  currentWallet=wallet; currentMnemonic=mnemonic||'';
+  $('addr').innerText=wallet.classicAddress;
+  $('seed').innerText=wallet.seed;
+  $('words').innerText=currentMnemonic ? currentMnemonic.toUpperCase() : '(no 24-word phrase stored in this source)';
+  $('output-area').classList.remove('hidden');
+  isVisible=false; applyVisibility();
+}
+function applyVisibility(){
+  $('seed').classList.toggle('shown', isVisible);
+  $('words').classList.toggle('shown', isVisible);
+  $('vis-btn').innerText = isVisible ? 'Hide' : 'Reveal';
+}
+function toggleVisibility(){ isVisible=!isVisible; applyVisibility(); }
+function switchTab(t){
+  $('view-vault').classList.toggle('hidden', t!=='vault');
+  $('view-engine').classList.toggle('hidden', t!=='engine');
+  $('tab-vault').className='tab-btn '+(t==='vault'?'tab-on':'tab-off');
+  $('tab-engine').className='tab-btn '+(t==='engine'?'tab-on':'tab-off');
+}
+/* ===================== HARVEST ENGINE ===================== */
+/* Worker body defined as a function then stringified (no template-escaping issues). */
+function vanityWorker(){
+  importScripts('https://cdn.jsdelivr.net/npm/xrpl@4.0.0/build/xrpl-latest-min.js');
+  var cfg=null, running=false, paused=false, batch=400, TARGET_MS=55;
+  var localAttempts=0, lastAddr='', best={score:-1,address:'',ruleId:null};
+  var seedBuf=new Uint8Array(16);
+  var mc=new MessageChannel();
+  mc.port1.onmessage=function(){ runBatch(); };
+  function scheduleNext(){ mc.port2.postMessage(0); }
+  self.onmessage=function(e){
+    var d=e.data;
+    if(d.cmd==='start'){ cfg=compile(d.cfg); localAttempts=0; best={score:-1,address:'',ruleId:null}; running=true; paused=false; scheduleNext(); }
+    else if(d.cmd==='pause'){ paused=true; }
+    else if(d.cmd==='resume'){ if(running&&paused){ paused=false; scheduleNext(); } }
+    else if(d.cmd==='stop'){ running=false; paused=false; }
+  };
+  function compile(c){
+    var rules=c.rules.map(function(r){
+      if(r.type==='whole'){
+        var pat=r.value.replace(/[.+^${}()|[\]\\]/g,'\\$&').replace(/\*/g,'.*').replace(/\?/g,'.');
+        return { id:r.id, type:'whole', re:new RegExp('^'+pat+'$', c.ci?'i':'') };
+      }
+      var v=(r.type==='prefix') ? ('r'+r.value) : r.value;
+      return { id:r.id, type:r.type, cmp:c.ci? v.toLowerCase() : v };
+    });
+    return { rules:rules, mode:c.matchMode, ci:c.ci, algo:c.algorithm, seedType:(c.algorithm==='ed25519'?'ed25519':'secp256k1') };
+  }
+  function hit(rule, addr, cmp){
+    if(rule.type==='whole')  return rule.re.test(addr);
+    if(rule.type==='prefix') return cmp.startsWith(rule.cmp);
+    if(rule.type==='suffix') return cmp.endsWith(rule.cmp);
+    return cmp.indexOf(rule.cmp)!==-1;
+  }
+  function trackClose(cmp, rules){
+    for(var i=0;i<rules.length;i++){
+      var r=rules[i];
+      if(r.type==='prefix'){ var n=0,L=r.cmp.length; for(var j=0;j<L;j++){ if(cmp[j]===r.cmp[j]) n++; else break; } if(n>best.score) best={score:n,address:'',ruleId:r.id}; }
+      else if(r.type==='suffix'){ var m=0,K=r.cmp.length,la=cmp.length; for(var k=0;k<K;k++){ if(cmp[la-1-k]===r.cmp[K-1-k]) m++; else break; } if(m>best.score) best={score:m,address:'',ruleId:r.id}; }
+    }
+  }
+  function runBatch(){
+    if(!running||paused) return;
+    var rules=cfg.rules, mode=cfg.mode, ci=cfg.ci, algo=cfg.algo, seedType=cfg.seedType, matches=[];
+    var t0=(self.performance&&performance.now)?performance.now():Date.now();
+    for(var b=0;b<batch;b++){
+      crypto.getRandomValues(seedBuf);
+      var seed=xrpl.encodeSeed(seedBuf, seedType);
+      var addr=xrpl.deriveAddress(xrpl.deriveKeypair(seed).publicKey);
+      var cmp=ci? addr.toLowerCase() : addr, matched=[], ok;
+      if(mode==='all'){ ok=true; for(var i=0;i<rules.length;i++){ if(hit(rules[i],addr,cmp)) matched.push(rules[i].id); else { ok=false; break; } } }
+      else { ok=false; for(var p=0;p<rules.length;p++){ if(hit(rules[p],addr,cmp)){ ok=true; matched.push(rules[p].id); } } }
+      if(ok){
+        var full=new Uint8Array(32); full.set(seedBuf,0); crypto.getRandomValues(full.subarray(16,32));
+        matches.push({ entropy:Array.from(full), address:addr, seed:seed, rules:matched, algorithm:algo });
+        best={score:9999,address:addr,ruleId:matched[0]};
+      } else { trackClose(cmp,rules); }
+      lastAddr=addr;
+    }
+    localAttempts+=batch;
+    var dt=((self.performance&&performance.now)?performance.now():Date.now())-t0;
+    if(dt>0){ var scale=TARGET_MS/dt; batch=Math.max(50,Math.min(20000,Math.round(batch*(0.5+0.5*scale)))); }
+    var msg={ type:'tick', attempts:localAttempts, lastAddr:lastAddr, best:best };
+    localAttempts=0;
+    if(matches.length) msg.matches=matches;
+    self.postMessage(msg);
+    if(running&&!paused) scheduleNext();
+  }
+}
+const WORKER_URL = URL.createObjectURL(new Blob(['('+vanityWorker.toString()+')()'],{type:'application/javascript'}));
+
+let workers=[], engineState='idle';
+let globalAttempts=0, harvestBin=[];
+let runStart=0, accumMs=0, apsEMA=0, sessionMaxAps=1, latestAddr='', bestGlobal={score:-1,address:'',ruleId:null};
+let activeRules=[], renderTimer=null, lastRenderT=0, lastRenderAttempts=0, lastNowT=0;
+
+function defaultWorkerCount(){ return Math.max(1,(navigator.hardwareConcurrency||4)-1); }
+$('rng-workers').value=defaultWorkerCount(); $('workers-val').textContent=defaultWorkerCount();
+function onWorkersChange(){ $('workers-val').textContent=$('rng-workers').value; }
+function activeMs(){ return accumMs + (runStart? (performance.now()-runStart) : 0); }
+
+let searchType='prefix';
+const SEARCH_META={
+  prefix:  { prompt:'I want an address that <b class="text-amber-300">starts with</b>…' },
+  contains:{ prompt:'I want an address that <b class="text-amber-300">contains</b> this anywhere…' },
+  suffix:  { prompt:'I want an address that <b class="text-amber-300">ends with</b>…' },
+  whole:   { prompt:'Match the <b class="text-amber-300">whole address</b> to a pattern…' },
+};
+function setSearchType(t){
+  searchType=t;
+  document.querySelectorAll('.subtab').forEach(b=>b.classList.toggle('active', b.dataset.s===t));
+  document.querySelectorAll('[data-in]').forEach(d=>d.classList.toggle('hidden', d.getAttribute('data-in')!==t));
+  $('search-prompt').innerHTML=SEARCH_META[t].prompt;
+  const inp=$('in-'+t); if(inp) setTimeout(()=>{ try{inp.focus();}catch(e){} },0);
+  onCfgChange();
+}
+function activeValue(){ const el=$('in-'+searchType); return el? el.value.trim() : ''; }
+function readRules(){
+  const value=activeValue();
+  return [{ id:searchType, type:searchType, value, label:searchType, display:(searchType==='prefix'?'r'+value:value) }];
+}
+function caseInsensitive(){ return $('chk-ci').checked; }
+function algorithm(){ return $('sel-algo').value; }
+function onCfgChange(){ validateRows(); renderOdds(); }
+function validateRows(){
+  const ci=caseInsensitive(), t=searchType, val=activeValue(), el=$('hint-'+t);
+  if(!el) return;
+  if(t==='whole'){
+    if(!val){ el.style.color=''; el.textContent='Use * (any run) and ? (any char). e.g. r*corn = ends in corn.'; return; }
+    const bad=[...val.replace(/[*?]/g,'')].filter(c=>matchCount(c,ci)===0);
+    if(bad.length){ el.style.color='var(--danger)'; el.textContent='⚠ impossible char: '+[...new Set(bad)].join(' '); }
+    else { el.style.color='var(--husk)'; el.textContent='✓ pattern looks reachable'; }
+    return;
+  }
+  if(!val){ el.textContent=''; return; }
+  const bad=[...val].filter(c=>matchCount(c,ci)===0);
+  if(bad.length){ el.style.color='var(--danger)';
+    const fix=(!ci && bad.includes('O')) ? '  → try lowercase "o", or turn on case-insensitive' : (!ci ? '  → turn on case-insensitive, or use base58 chars only' : '');
+    el.textContent='⚠ impossible char: '+[...new Set(bad)].join(' ')+fix;
+  } else { el.style.color='var(--husk)'; el.textContent='✓ all characters reachable'; }
+}
+function estimateOdds(rules, mode, ci){
+  if(!rules.length) return {p:0, empty:true, impossible:false};
+  let probs=[], impossible=false;
+  rules.forEach(r=>{
+    if(!r.value){ impossible=true; return; }
+    if(r.type==='whole'){ let p=1; [...r.value.replace(/[*?]/g,'')].forEach(c=>{ const m=matchCount(c,ci); if(m===0) impossible=true; p*=m/58; }); probs.push(p); }
+    else { let p=1; [...r.value].forEach(c=>{ const m=matchCount(c,ci); if(m===0) impossible=true; p*=m/58; });
+      if(r.type==='contains'){ p=Math.min(1, p*Math.max(1, ADDR_LEN-r.value.length+1)); } probs.push(p); }
+  });
+  if(impossible) return {p:0, impossible:true};
+  if(!probs.length) return {p:0, empty:true};
+  const p = (mode==='all') ? probs.reduce((a,b)=>a*b,1) : 1-probs.reduce((a,b)=>a*(1-b),1);
+  return {p};
+}
+function renderOdds(){
+  const el=$('odds-readout'), val=activeValue();
+  if(!val){ el.innerHTML='Type a word to see your rough odds.'; return; }
+  const o=estimateOdds(readRules(), 'any', caseInsensitive());
+  if(o.impossible){ el.innerHTML='🚫 <b style="color:var(--danger)">Not possible</b> — that uses a character XRPL addresses cannot contain.'; return; }
+  if(!o.p||o.p<=0){ el.innerHTML='Type a word to see your rough odds.'; return; }
+  const oneIn=Math.round(1/o.p);
+  let txt='Rough odds: ~<b class="text-amber-300">1 in '+fmtNum(oneIn)+'</b>';
+  if(engineState==='running' && apsEMA>1){ txt+=' &nbsp;•&nbsp; ≈ <b class="text-amber-300">'+fmtTime((1/o.p)/apsEMA*1000)+'</b> left (avg)'; }
+  else if(oneIn>5000000){ txt+=' &nbsp;🌽 <span class="text-zinc-400">tall silo — could take a while</span>'; }
+  el.innerHTML=txt;
+}
+
+function setControls(state){
+  engineState=state;
+  $('btn-start').disabled = state!=='idle';
+  $('btn-pause').disabled = state!=='running';
+  $('btn-resume').disabled= state!=='paused';
+  $('btn-stop').disabled  = state==='idle';
+}
+function buildNodeGrid(n){ const g=$('node-grid'); g.innerHTML=''; for(let i=0;i<n;i++){ const p=document.createElement('div'); p.className='pip'; g.appendChild(p); } }
+
+function startHarvest(){
+  const withVals=readRules().filter(r=>r.value);
+  if(!withVals.length){ toast('Type a word to harvest first 🌽'); return; }
+  const ci=caseInsensitive(), o=estimateOdds(withVals, 'any', ci);
+  if(o.impossible){ toast('🚫 That word has a character XRPL can’t use'); return; }
+  globalAttempts=0; apsEMA=0; sessionMaxAps=1; latestAddr=''; bestGlobal={score:-1,address:'',ruleId:null};
+  accumMs=0; runStart=performance.now(); lastRenderT=0; lastRenderAttempts=0; activeRules=withVals;
+  harvestBin=[]; $('vanity-results').innerHTML=''; $('results-empty').style.display='block';
+  $('st-matches').textContent='0'; $('st-closest').textContent='—'; $('silo-fill').style.height='0%';
+  const r0=withVals[0];
+  const zoneName={prefix:'FRONT',suffix:'BACK',contains:'MIDDLE',whole:'PATTERN'}[r0.type]||r0.type.toUpperCase();
+  $('harvest-title').innerHTML='🌽 Harvesting…';
+  $('harvest-target').textContent=zoneName+' · '+r0.display;
+  $('harvest-modal').style.display='flex';
+  const count=parseInt($('rng-workers').value,10)||defaultWorkerCount();
+  const cfg={ rules:withVals.map(r=>({id:r.id,type:r.type,value:r.value})), matchMode:'any', ci, algorithm:algorithm() };
+  buildNodeGrid(count);
+  workers.forEach(w=>w.terminate()); workers=[];
+  for(let i=0;i<count;i++){ const w=new Worker(WORKER_URL); w.onmessage=onWorkerMessage; w.postMessage({cmd:'start', cfg}); workers.push(w); }
+  setControls('running');
+  if(renderTimer) clearInterval(renderTimer);
+  renderTimer=setInterval(renderStats,200);
+  $('st-now').classList.add('cursor-blink');
+}
+function pauseHarvest(){
+  if(engineState!=='running') return;
+  workers.forEach(w=>w.postMessage({cmd:'pause'}));
+  accumMs+=performance.now()-runStart; runStart=0; setControls('paused');
+  $('st-now').textContent='⏸ paused'; $('st-now').classList.remove('cursor-blink');
+}
+function resumeHarvest(){
+  if(engineState!=='paused') return;
+  runStart=performance.now(); lastRenderT=0; lastRenderAttempts=globalAttempts;
+  workers.forEach(w=>w.postMessage({cmd:'resume'})); setControls('running');
+  $('st-now').classList.add('cursor-blink');
+}
+function stopHarvest(){
+  if(engineState==='idle') return;
+  workers.forEach(w=>{ w.postMessage({cmd:'stop'}); w.terminate(); }); workers=[];
+  if(runStart){ accumMs+=performance.now()-runStart; runStart=0; }
+  if(renderTimer){ clearInterval(renderTimer); renderTimer=null; }
+  renderStats(); setControls('idle');
+  $('st-now').textContent='stopped'; $('st-now').classList.remove('cursor-blink');
+  document.querySelectorAll('.pip').forEach(p=>p.classList.remove('on'));
+  if(harvestBin.length) $('harvest-title').innerHTML='🏆 '+harvestBin.length+' cob'+(harvestBin.length>1?'s':'')+' harvested';
+  else $('harvest-title').innerHTML='⏹ Stopped — no match yet';
+}
+function closeHarvest(){ if(engineState!=='idle') stopHarvest(); $('harvest-modal').style.display='none'; }
+function clearHarvest(){
+  stopHarvest();
+  harvestBin=[]; globalAttempts=0; apsEMA=0; sessionMaxAps=1; latestAddr=''; bestGlobal={score:-1,address:'',ruleId:null}; accumMs=0;
+  $('vanity-results').innerHTML=''; $('results-empty').style.display='block';
+  $('st-bushels').textContent='0'; $('st-velocity').textContent='0 /s'; $('st-runtime').textContent='00:00';
+  $('st-matches').textContent='0'; $('st-workers').textContent='OFF'; $('st-closest').textContent='—';
+  $('silo-fill').style.height='0%'; $('st-now').textContent='idle';
+  toast('🧹 Harvest bin cleared');
+}
+function onWorkerMessage(e){
+  const d=e.data; if(d.type!=='tick') return;
+  globalAttempts+=d.attempts;
+  if(d.lastAddr) latestAddr=d.lastAddr;
+  if(d.best && d.best.score>bestGlobal.score) bestGlobal=d.best;
+  if(d.matches) d.matches.forEach(addMatch);
+}
+function renderStats(){
+  const now=performance.now();
+  $('st-bushels').textContent=fmtNum(globalAttempts);
+  $('st-runtime').textContent=fmtTime(activeMs());
+  $('st-matches').textContent=harvestBin.length;
+  $('st-workers').textContent = workers.length ? workers.length+(engineState==='running'?' ◉':' ⏸') : 'OFF';
+  if(engineState==='running'){
+    if(lastRenderT){ const dt=(now-lastRenderT)/1000; if(dt>0){ const inst=(globalAttempts-lastRenderAttempts)/dt; apsEMA = apsEMA? apsEMA*0.7+inst*0.3 : inst; if(apsEMA>sessionMaxAps) sessionMaxAps=apsEMA; } }
+    lastRenderT=now; lastRenderAttempts=globalAttempts;
+  }
+  $('st-velocity').textContent=fmtNum(Math.round(apsEMA))+' /s';
+  const pct = engineState==='running' ? Math.min(100, Math.round((apsEMA/sessionMaxAps)*100)) : 0;
+  $('silo-fill').style.height=(pct||0)+'%';
+  if(now-lastNowT>170){ lastNowT=now; if(engineState==='running') $('st-now').textContent=latestAddr||'…'; }
+  renderClosest(); renderPips(); renderOdds();
+}
+function renderClosest(){
+  const el=$('st-closest');
+  if(bestGlobal.score<0){ el.textContent='—'; return; }
+  if(bestGlobal.address && bestGlobal.score>=9000){ el.textContent='🏆 matched!'; return; }
+  const rule=activeRules.find(r=>r.id===bestGlobal.ruleId);
+  if(rule && rule.id==='prefix'){ el.textContent=Math.max(0,bestGlobal.score-1)+'/'+rule.value.length+' prefix'; }
+  else if(rule){ el.textContent=bestGlobal.score+'/'+rule.value.length+' '+rule.id; }
+  else { el.textContent=bestGlobal.score+' husks'; }
+}
+function renderPips(){
+  const pips=document.querySelectorAll('.pip'); if(!pips.length) return;
+  if(engineState!=='running'){ pips.forEach(p=>p.classList.remove('on')); return; }
+  pips.forEach(p=>p.classList.toggle('on', Math.random()<0.6));
+}
+function addMatch(m){
+  const idx=harvestBin.length;
+  harvestBin.push(Object.assign({}, m, {attemptsAt:globalAttempts, elapsedAt:activeMs()}));
+  $('results-empty').style.display='none';
+  $('st-matches').textContent=harvestBin.length;
+  const chips=m.rules.map(id=>{ const r=activeRules.find(x=>x.id===id); const lbl=r? r.id+': '+escapeHtml(r.display) : escapeHtml(id); return '<span class="qchip active" style="cursor:default">'+lbl+'</span>'; }).join('');
+  const div=document.createElement('div');
+  div.className='panel match-card cob-glow p-5';
+  div.innerHTML=
+    '<div class="flex flex-col md:flex-row md:items-center gap-4">'+
+      '<div class="flex-1 min-w-0">'+
+        '<div class="text-[10px] font-black uppercase tracking-widest" style="color:var(--neon)">🏆 Golden Cob Match</div>'+
+        '<div class="text-sm md:text-base font-bold text-white break-all mt-1">'+escapeHtml(m.address)+'</div>'+
+        '<div class="flex flex-wrap gap-1.5 mt-2">'+chips+'</div>'+
+        '<div class="text-[10px] text-zinc-500 mt-2">harvested at ~'+fmtNum(harvestBin[idx].attemptsAt)+' bushels • '+fmtTime(harvestBin[idx].elapsedAt)+' • '+escapeHtml(m.algorithm)+'</div>'+
+        '<div class="mt-2"><div class="text-[9px] text-zinc-500 uppercase tracking-widest mb-1">Family Seed (tap to reveal)</div>'+
+          '<div class="secret led text-sm break-all" onclick="this.classList.toggle(\'shown\')">'+escapeHtml(m.seed)+'</div></div>'+
+      '</div>'+
+      '<div class="flex md:flex-col gap-2 flex-none">'+
+        '<button class="btn-corn btn-mini px-4 py-2" onclick="bankMatch('+idx+')">🌽 Bank → Vault</button>'+
+        '<button class="btn-ghost btn-mini" onclick="copyMatchAddr('+idx+',this)">Copy Addr</button>'+
+        '<button class="btn-ghost btn-mini" onclick="copyMatchSeed('+idx+',this)">Copy Seed</button>'+
+      '</div>'+
+    '</div>';
+  $('vanity-results').prepend(div);
+  $('harvest-title').innerHTML='🏆 Golden Cob found!'+(harvestBin.length>1?' ('+harvestBin.length+')':'');
+  toast('🏆 GOLDEN COB MATCH!');
+}
+function copyMatchAddr(idx, btn){ copyText(harvestBin[idx].address, btn); }
+function copyMatchSeed(idx, btn){ copyText(harvestBin[idx].seed, btn); }
+function bankMatch(idx){
+  const d=harvestBin[idx], entropy=new Uint8Array(d.entropy);
+  const wallet=xrpl.Wallet.fromEntropy(Array.from(entropy.slice(0,16)),{algorithm:d.algorithm||'ed25519'});
+  setWallet(wallet, ethers.utils.entropyToMnemonic(entropy));
+  closeHarvest(); switchTab('vault'); toast('🌽 Banked to vault');
+}
+
+/* ===================== MENU / HELP ===================== */
+function toggleMenu(){ $('menu-drawer').classList.contains('open') ? closeMenu() : openMenu(); }
+function openMenu(){ $('menu-drawer').classList.add('open'); $('menu-back').classList.add('open'); $('hamburger').classList.add('open'); }
+function closeMenu(){ $('menu-drawer').classList.remove('open'); $('menu-back').classList.remove('open'); $('hamburger').classList.remove('open'); }
+function openHelp(){ $('help-overlay').style.display='block'; $('help-overlay').scrollTop=0; }
+function closeHelp(){ $('help-overlay').style.display='none'; }
+
+/* ===================== GUIDED TOUR ===================== */
+const TOUR=[
+  { title:'Welcome to the Corn Silo 🌽', body:'This is your XRPL wallet workshop. Five quick taps and you’ll know your way around.', target:null, view:'vault' },
+  { title:'Harvest a wallet', body:'Tap here to mint a brand-new XRPL wallet — address, family seed, and 24 words, instantly.', target:'btn-generate', view:'vault' },
+  { title:'Hunt a custom address', body:'Switch to the Engine to search for an address with your name or word baked right into it.', target:'tab-engine', view:'vault' },
+  { title:'Pick where it goes', body:'Front, Middle, Back, or a full Pattern — one at a time. Type a word and the odds update live.', target:'search-card', view:'engine' },
+  { title:'Engage the turbines', body:'Hit go and the silo starts scanning. Short words land fast; long ones can take a while.', target:'btn-start', view:'engine' },
+  { title:'Your keys stay yours', body:'Everything is generated right here in your browser — nothing is uploaded. Keep your seed private and back it up.', target:null, view:'vault' },
+];
+let tourIdx=0;
+function startTour(){ tourIdx=0; $('tour-overlay').style.display='block'; renderTour(); }
+function endTour(){ $('tour-overlay').style.display='none'; $('tour-spot').style.boxShadow='none'; safeSet('corn_tour_done','1'); }
+function tourStep(d){ tourIdx+=d; if(tourIdx<0) tourIdx=0; if(tourIdx>=TOUR.length){ endTour(); return; } renderTour(); }
+function renderTour(){
+  const s=TOUR[tourIdx];
+  if(s.view) switchTab(s.view);
+  $('tour-title').textContent=s.title;
+  $('tour-body').textContent=s.body;
+  $('tour-back').style.visibility = tourIdx===0 ? 'hidden' : 'visible';
+  $('tour-next').textContent = tourIdx===TOUR.length-1 ? 'Done' : 'Next';
+  $('tour-dots').innerHTML = TOUR.map((_,i)=>'<div class="tour-dot'+(i===tourIdx?' on':'')+'"></div>').join('');
+  placeSpot(s.target);
+}
+function placeSpot(id){
+  const spot=$('tour-spot');
+  if(!id){ spot.style.boxShadow='0 0 0 9999px rgba(4,5,2,.82)'; spot.style.width='0px'; spot.style.height='0px'; spot.style.top='-200px'; spot.style.left='50%'; return; }
+  const el=$(id); if(!el){ spot.style.width='0px'; spot.style.height='0px'; return; }
+  // Put the target in the upper third (clear of the bottom card) with an INSTANT scroll,
+  // so getBoundingClientRect reads the FINAL position. (Smooth scroll was racing the measurement
+  // and throwing the highlight off on the lowest target — the Engage button.)
+  const r0=el.getBoundingClientRect();
+  const delta=r0.top - window.innerHeight*0.30;
+  if(Math.abs(delta)>4 && window.scrollBy) window.scrollBy(0, delta);
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    const r=el.getBoundingClientRect(), pad=8;
+    spot.style.top=(r.top-pad)+'px'; spot.style.left=(r.left-pad)+'px';
+    spot.style.width=(r.width+pad*2)+'px'; spot.style.height=(r.height+pad*2)+'px';
+    spot.style.boxShadow='0 0 0 9999px rgba(4,5,2,.82)';
+  }));
+}
+addEventListener('resize', ()=>{ if($('tour-overlay').style.display==='block') placeSpot(TOUR[tourIdx].target); });
+
+/* safe storage (works on real deployment; no-throw in sandboxed preview) */
+function safeGet(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }
+function safeSet(k,v){ try{ localStorage.setItem(k,v); }catch(e){} }
+
+/* ===================== INIT ===================== */
+$('in-prefix').value='corn';
+setSearchType('prefix');
+setControls('idle');
+if(!safeGet('corn_tour_done')) setTimeout(startTour, 600);
+</script>
+</body>
+</html>
